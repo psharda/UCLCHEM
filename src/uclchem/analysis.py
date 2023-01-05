@@ -142,8 +142,6 @@ def analysis_to_yaml(results_file, rate_threshold=0.99):
         old_key_reactions = []
         old_total_destruct = 0.0
         old_total_form = 0.0
-        if species_name == "H2":
-            break
         if len(reac_indxs) <= 500:
             all_analyses[str(species_name)] = {}
             for i, row in tqdm(result_df.iterrows()):
