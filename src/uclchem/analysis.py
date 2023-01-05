@@ -7,6 +7,8 @@ from pandas import Series, read_csv
 from seaborn import color_palette
 import matplotlib.pyplot as plt
 import os
+from tqdm import tqdm
+import yaml
 
 _ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -103,6 +105,109 @@ def plot_species(ax, df, species):
         ax.set(yscale="log")
         ax.legend()
     return ax
+
+def analysis_to_yaml(results_file, rate_threshold=0.99):
+    """A function which loops over every time step in an output file and finds the rate of change of a species at that time due to each of the reactions it is involved in.
+    From this, the most important reactions are identified and printed to file. This can be used to understand the chemical reason behind a species' behaviour.
+
+    Args:
+        result_file (str): The path to the file containing the UCLCHEM output
+        rate_threshold (float,optional): Analysis output will contain the only the most efficient reactions that are responsible for rate_threshold of the total production and destruction rate. Defaults to 0.99.
+    """
+    result_df = read_output_file(results_file)
+    species = np.loadtxt(
+        os.path.join(_ROOT, "species.csv"),
+        usecols=[0],
+        dtype=str,
+        skiprows=1,
+        unpack=True,
+        delimiter=",",
+        comments="%",
+    )
+    species = list(species)
+    reactions = np.loadtxt(
+        os.path.join(_ROOT, "reactions.csv"),
+        dtype=str,
+        skiprows=1,
+        delimiter=",",
+        usecols=[0, 1, 2, 3, 4, 5, 6],
+        comments="%",
+    )
+    all_analyses = {}
+    print(f"Found {len(species)} species, brace yourselves.")
+    for species_name in species:
+        fortran_reac_indxs = [i + 1 for i, reaction in enumerate(reactions) if species_name in reaction]
+        reac_indxs = [i for i, reaction in enumerate(reactions) if species_name in reaction]
+        species_index = species.index(species_name) + 1  # fortran index of species
+        old_key_reactions = []
+        old_total_destruct = 0.0
+        old_total_form = 0.0
+        if species_name == "H2":
+            break
+        if len(reac_indxs) <= 500:
+            all_analyses[str(species_name)] = {}
+            for i, row in tqdm(result_df.iterrows()):
+                try: 
+                    # recreate the parameter dictionary needed to get accurate rates
+                    param_dict = _param_dict_from_output(row)
+
+                    # get the rate of all reactions from UCLCHEM along with a few other necessary values
+                    rates, transfer, swap, bulk_layers = _get_species_rates(
+                        param_dict, row[species], species_index, fortran_reac_indxs
+                    )
+
+                    # convert reaction rates to total rates of change, this needs manually updating when you add new reaction types!
+                    change_reacs, changes = _get_rates_of_change(
+                        rates, reactions[reac_indxs], species, species_name, row, swap, bulk_layers
+                    )
+
+                    change_reacs = _format_reactions(change_reacs)
+
+                    # This whole block adds the transfer of material from surface to bulk as surface grows (or vice versa)
+                    # it's not a reaction in the network so won't get picked up any other way. We manually add it.
+                    if species_name[0] == "@":
+                        if transfer >= 0:
+                            change_reacs.append(f"#{species_name[1:]} + SURFACE_TRANSFER -> {species_name}")
+                        else:
+                            change_reacs.append(f"{species_name} + SURFACE_TRANSFER -> #{species_name[1:]}")
+                        changes = np.append(changes, transfer)
+                    elif species_name[0] == "#":
+                        if transfer >= 0:
+                            change_reacs.append(f"@{species_name[1:]} + SURFACE_TRANSFER -> {species_name}")
+                        else:
+                            change_reacs.append(f"{species_name} + SURFACE_TRANSFER -> @{species_name[1:]}")
+                        changes = np.append(changes, transfer)
+
+                    # Then we remove the reactions that are not important enough to be printed by finding
+                    # which of the top reactions we need to reach rate_threshold*total_rate
+                    (
+                        total_formation,
+                        total_destruct,
+                        key_reactions,
+                        key_changes,
+                    ) = _remove_slow_reactions(changes, change_reacs, rate_threshold=rate_threshold)
+
+                    #only update if list of reactions change or rates change by factor of 10
+                    if (
+                        (old_key_reactions != key_reactions)
+                        or (np.abs(np.log10(np.abs(old_total_destruct))-np.log10(np.abs(total_destruct)))>1)
+                        or (np.abs(np.log10(old_total_form)-np.log10(total_formation))>1)
+                    ):
+                        old_key_reactions = key_reactions[:]
+                        old_total_form=total_formation
+                        old_total_destruct=total_destruct
+                        all_analyses[str(species_name)][float(row["Time"])] = _write_to_machine_readable(
+                            row["Time"], total_formation, total_destruct, key_reactions, key_changes
+                        )
+                except: 
+                    print(f"for {species_name} something went wrong for step {i}.")
+            print(f"Just analyzed {species_name}")
+        else:
+            print(f"{species_name} contains more than 500 species, we are skipping it.")
+    new_name = results_file.replace(".dat", ".yaml")
+    with open(new_name, 'w') as outfile:
+        yaml.dump(all_analyses, outfile)
+
 
 
 def analysis(species_name, result_file, output_file, rate_threshold=0.99):
@@ -326,6 +431,24 @@ def _remove_slow_reactions(changes, change_reacs, rate_threshold=0.99):
             key_changes.append(changes[i])
 
     return totalProd, totalDestruct, key_reactions, key_changes
+
+
+def _write_to_machine_readable(
+    time, total_production, total_destruction, key_reactions, key_changes
+):
+    """Prints key reactions to file
+
+    Args:
+        time (float): Simulation time at which analysis is performed
+        total_production (float): Total positive rate of change
+        total_destruction (float): Total negative rate of change
+        key_reactions (list): A list of all reactions that contribute to the total rate of change
+        key_changes (list): A list of rates of change contributing to total
+    """
+    return {"time": float(time), "total_production": float(total_production), "total_destruction": float(total_destruction), 
+                "key_production_reactions": {str(reac) : float(key_changes[k] / total_production) for k, reac in enumerate(key_reactions) if key_changes[k]>0},
+                "key_destruction_reactions": {str(reac) : float(key_changes[k] / total_destruction) for k, reac in enumerate(key_reactions) if key_changes[k]<0}
+                }
 
 
 def _write_analysis(
