@@ -12,8 +12,6 @@ speciesFile = "inputFiles/default_species.csv"
 speciesList, _ = read_species_file(speciesFile)
 print(f"I found {len(speciesList)} species in the file {speciesFile}")
 
-speciesList = speciesList[0]
-
 print("\nReading reactions")
 reactions1, drops = read_reaction_file(reactionsFile1, speciesList, "UCL")
 print(f"I found {len(reactions1)} reactions in the file {reactionsFile1}, I dropped {len(drops)} reactions.")
