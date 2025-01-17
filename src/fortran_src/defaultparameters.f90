@@ -17,6 +17,7 @@
 initialTemp=10.0 !Initial gas temperature in Kelvin for all gas parcels in model.
 initialDens=1.00d2 !Initial gas density in H nuclei per cm$^{-3}$ for all gas parcels in model.
 finalDens=1.00d5 !Final gas density achieved via freefall.
+columnDens=1e21 !initial column density
 currentTime=0.0 !Time at start of model in years.
 finalTime=5.0d6 !Time to stop model in years, if not using `endAtFinalDensity` below.
 radfield=1.0 !Interstellar radiation field in Habing

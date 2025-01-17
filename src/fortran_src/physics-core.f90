@@ -20,7 +20,7 @@ MODULE physicscore
     CHARACTER(len=1) :: ionModel="L"
 
     !variables either controlled by physics or that user may wish to change
-    REAL(dp) :: initialDens,timeInYears,targetTime,currentTime,currentTimeold,finalDens,finalTime,initialTemp
+    REAL(dp) :: initialDens,timeInYears,targetTime,currentTime,currentTimeold,finalDens,finalTime,initialTemp,columnDens
     REAL(dp) ::  freefallFactor,cloudSize,rout,rin,baseAv,zeta
     REAL(dp), allocatable :: av(:),coldens(:),gasTemp(:),dustTemp(:),density(:)
 
@@ -70,23 +70,26 @@ CONTAINS
 
         !calculate initial column density as distance from core edge to current point * density
         DO dstep=1,points
-            coldens(dstep)=real(points-dstep+1)*cloudSize/real(points)*initialDens
+            coldens(dstep)=columnDens !real(points-dstep+1)*cloudSize/real(points)*initialDens
+            !print *, 'coreInitializePhysics: coldens = ', coldens(dstep), ' dstep = ', dstep
         END DO
           !calculate the Av using an assumed extinction outside of core (baseAv), depth of point and density
-        av= baseAv +coldens/1.6d21
+        av=baseAv +coldens/1.6d21
         zetaScale=zeta
     END SUBROUTINE coreInitializePhysics
 
     SUBROUTINE coreUpdatePhysics
         !calculate column density. Remember dstep counts from core centre to edge
         !and coldens should be amount of gas from edge to parcel.
-        coldens(dstep)=cloudSize/real(points)*density(dstep)
+        coldens(dstep)=columnDens  !cloudSize/real(points)*density(dstep)
 
         ! add previous column densities to current as we move into cloud to get total
-        IF (dstep .lt. points) coldens(dstep)=coldens(dstep)+coldens(dstep-1)
+        IF (dstep .lt. points) coldens(dstep)=columnDens  !coldens(dstep)+coldens(dstep-1)
+
+        !print *, 'coreUpdatePhysics: coldens = ', coldens, ' dstep = ', dstep
 
         !calculate the Av using an assumed extinction outside of core (baseAv), depth of point and density
-        av(dstep)= baseAv +coldens(dstep)/1.6d21
+        av(dstep)=baseAv +coldens(dstep)/1.6d21
         dustTemp=gasTemp
 
         IF (cosmicRayAttenuation) CALL ionizationDependency

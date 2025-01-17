@@ -417,6 +417,8 @@ CONTAINS
                     READ(inputValue,*,iostat=successFlag) initialDens
                 CASE('finaldens')
                     READ(inputValue,*,iostat=successFlag) finalDens
+                CASE('columndens')
+                    READ(inputValue,*,iostat=successFlag) columnDens
                 CASE('currenttime')
                     READ(inputValue,*,iostat=successFlag) currentTime
                 CASE('finaltime')
@@ -461,6 +463,8 @@ CONTAINS
                     READ(inputValue,*,iostat=successFlag) improvedH2CRPDissociation
                 CASE('ion')
                     READ(inputValue,*,iostat=successFlag) ion
+                CASE('fh')
+                    READ(inputValue,*,iostat=successFlag) fh
                 CASE('fhe')
                     READ(inputValue,*,iostat=successFlag) fhe
                 CASE('fc')

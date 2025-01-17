@@ -158,19 +158,21 @@ CONTAINS
             IF (.not. freefall) abund(nspec+1,dstep)=density(dstep)
 
             !First sum the total column density over all points further towards edge of cloud
-            IF (dstep.gt.1) THEN
-                h2ColToCell=(sum(abund(nh2,:dstep-1)*density(:dstep-1)))*(cloudSize/real(points))
-                coColToCell=(sum(abund(nco,:dstep-1)*density(:dstep-1)))*(cloudSize/real(points))
-                cColToCell=(sum(abund(nc,:dstep-1)*density(:dstep-1)))*(cloudSize/real(points))
-            ELSE
-                h2ColToCell=0.0
-                coColToCell=0.0
-                cColToCell=0.0
-            ENDIF
+            !IF (dstep.gt.1) THEN
+            !    h2ColToCell=sum(abund(nh2,:dstep-1)*columnDens) !(sum(abund(nh2,:dstep-1)*density(:dstep-1)))*(cloudSize/real(points))
+            !    coColToCell=sum(abund(nco,:dstep-1)*columnDens) !(sum(abund(nco,:dstep-1)*density(:dstep-1)))*(cloudSize/real(points))
+            !    cColToCell=sum(abund(nc,:dstep-1)*columnDens) !(sum(abund(nc,:dstep-1)*density(:dstep-1)))*(cloudSize/real(points))
+            !ELSE
+            !    h2ColToCell=0.0
+            !    coColToCell=0.0
+            !    cColToCell=0.0
+            !ENDIF
             !then add half the column density of the current point to get average in this "cell"
-            h2Col=h2ColToCell+0.5*abund(nh2,dstep)*density(dstep)*(cloudSize/real(points))
-            coCol=coColToCell+0.5*abund(nco,dstep)*density(dstep)*(cloudSize/real(points))
-            cCol=cColToCell+0.5*abund(nc,dstep)*density(dstep)*(cloudSize/real(points))
+            h2Col=abund(nh2,dstep)*columnDens !h2ColToCell+0.5*abund(nh2,dstep)*density(dstep)*(cloudSize/real(points))
+            coCol=abund(nco,dstep)*columnDens !coColToCell+0.5*abund(nco,dstep)*density(dstep)*(cloudSize/real(points))
+            cCol=abund(nc,dstep)*columnDens !cColToCell+0.5*abund(nc,dstep)*density(dstep)*(cloudSize/real(points))
+
+            !print *, 'updateChemistry: h2col = ', h2Col, columnDens, abund(nh2,dstep)
 
             !Reset surface and bulk values in case of integration error or sputtering
             abund(nBulk,dstep)=sum(abund(bulkList,dstep))
@@ -282,10 +284,12 @@ CONTAINS
         !changing abundances of H2 and CO can causes oscillation since their rates depend on their abundances
         !recalculating rates as abundances are updated prevents that.
         !thus these are the only rates calculated each time the ODE system is called.
-        cocol=coColToCell+0.5*Y(nco)*D*(cloudSize/real(points))
-        h2col=h2ColToCell+0.5*Y(nh2)*D*(cloudSize/real(points))
+        cocol=coColToCell+0.5*Y(nco)*columnDens !coColToCell+0.5*Y(nco)*D*(cloudSize/real(points))
+        h2col=h2ColToCell+0.5*Y(nh2)*columnDens !h2ColToCell+0.5*Y(nh2)*D*(cloudSize/real(points))
         rate(nR_H2_hv)=H2PhotoDissRate(h2Col,radField,av(dstep),turbVel) !H2 photodissociation
         rate(nR_CO_hv)=COPhotoDissRate(h2Col,coCol,radField,av(dstep)) !CO photodissociation
+
+        !print *, 'subroutine F: ', h2col, Y(nh2), columnDens
 
         !recalculate coefficients for ice processes
         safeMantle=MAX(1d-30,Y(nSurface))

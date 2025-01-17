@@ -73,9 +73,10 @@ CONTAINS
     SUBROUTINE updatePhysics
         !calculate column density. Remember dstep counts from core to edge
         !and coldens should be amount of gas from edge to parcel.
-        call findcoldens(coldens(dstep),rin,rho0fit(timeInYears),r0fit(timeInYears),afit(timeInYears),rout)
+        !call findcoldens(coldens(dstep),rin,rho0fit(timeInYears),r0fit(timeInYears),afit(timeInYears),rout)
+        coldens(dstep) = columnDens
         !calculate the Av using an assumed extinction outside of core (baseAv), depth of point and density
-        av(dstep)= baseAv +coldens(dstep)/1.6d21
+        av(dstep)=baseAv +coldens(dstep)/1.6d21
         !If collapse is one of the parameterized modes, find new density and radius
         
         IF ((collapse_mode .le. 2)) THEN
